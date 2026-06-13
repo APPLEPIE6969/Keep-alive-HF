@@ -1,0 +1,31 @@
+name: Keep HF Hub MCP Space Awake
+
+on:
+  schedule:
+    - cron: "0 6 * * *"    # every day at 06:00 UTC
+  workflow_dispatch:         # manual trigger from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Space /health
+        env:
+          HF_KEY: ${{ secrets.HF_KEY }}
+        run: |
+          URL="https://zeroclawagent-huggingface-mcp.hf.space/health"
+          echo "Pinging $URL ..."
+          # Retry loop: a sleeping Space cold-starts (~30s-2min), so poll until 200
+          for i in $(seq 1 40); do
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' \
+                   -H "Authorization: Bearer $HF_KEY" \
+                   --max-time 30 "$URL")
+            echo "Attempt $i -> HTTP $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "Space is awake ✅"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Space did not return 200 after retries ❌"
+          exit 1
